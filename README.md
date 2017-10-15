@@ -2,33 +2,22 @@
 
 A simple a/b metrics data collection and visualization with redis.
 
-## Create a new ab test
+## Example loading lua script from golang
 
-```bash
-$ curl -XPOST http://localhost:8080/ab/yes-or-no -d '{"options": ["yes", "no"], "name": "Yes or No test", "slug": "yes-or-no", "description": "a simple test to visualize if user picks option yes over no"}'
-```
+```golang
+func () {
+  //
+	script1 := client.ScriptLoad(`local value = cmsgpack.pack({ARGV[2], ARGV[1]})
+redis.call('zadd', KEYS[1], ARGV[1], value)
+return redis.status_reply('ok')`)
 
-## Incrementing the option
+	if script1.Err() != nil {
+		log.Println("error loading script:", script1.Err().Error())
+	}
+	// Else, get the sha
+	sha := script1.Val()
+	log.Println(sha)
 
-```bash
-$ curl -XPOST http://localhost:8080/ab/yes-or-no/yes
-```
-
-## Getting the options
-
-```bash
-$ curl http://localhost:8080/ab/yes-or-no
-```
-
-Output:
-
-```
-Yes: 10
-No: 0
-```
-
-## Getting all ab tests
-
-```bash
-$ curl http://localhost:8080/ab
+	cmd2 := client.EvalSha(sha, []string{"test:1"}, "1421481600000", "yes")
+}
 ```

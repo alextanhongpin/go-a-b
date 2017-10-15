@@ -233,7 +233,9 @@ job "redis" {
         memory = 256 # 256MB
         network {
           mbits = 10
-          port "db" {}
+          port "db" {
+            static = "6379"
+          }
         }
       }
 
