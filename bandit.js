@@ -7,7 +7,10 @@ class EpsilonGreedy {
   }
 
   selectArm () {
-    if (Math.random() > this.epsilon) { // Exploit!
+    const random = Math.random()
+    const isExploiting = random > this.epsilon
+    console.log('exploiting', isExploiting, this.epsilon, random)
+    if (isExploiting) { // Exploit!
       // Index of the best arm
       return this.values.indexOf(Math.max(...this.values))
     } else { // Explore!
@@ -50,6 +53,7 @@ function simulate (AlgoClass, options, arms, horizon) {
     cumulativeReward += reward
     cumulativeRewards[t] = cumulativeReward
   }
+  console.log(algo)
   return { chosenArm, rewards, cumulativeRewards }
 }
 
@@ -60,9 +64,12 @@ function main () {
   const results = simulate(EpsilonGreedy, { epsilon: 0.1, n: nArms }, arms, horizon)
 
   console.log(arms)
+  console.log(results.chosenArm[99999])
   console.log(results.cumulativeRewards[99999])
 
   // maxReward = horizon * maxP = 100000 * 0.1 = 10000
   // regret = maxReward - totalReward = 10000 - 8906 = 1094
   // maxReward * epsilon = 10000 * 0.1 = 1000 = 1094 = regret
 }
+
+// main()
