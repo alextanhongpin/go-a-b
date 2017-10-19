@@ -6,31 +6,37 @@ const arm1 = document.getElementById('arm1')
 const arm2 = document.getElementById('arm2')
 const arm3 = document.getElementById('arm3')
 
+const nArms = 5
 const bandit = new EpsilonGreedy({
   epsilon: 0.1,
-  n: 3
+  n: nArms
 })
 
+const alphabets = 'abcdefghijklmnopqrstuvwxyz'.split('')
 const chart = new Chart(ctx, {
-  type: 'bar',
+  type: 'horizontalBar',
   data: {
-    labels: ['a', 'b', 'c'],
+    labels: Array(nArms).fill().map((_, index) => alphabets[index]),
     datasets: [
       {
         label: 'Reward',
         backgroundColor: 'rgb(0, 99, 132)',
         borderColor: 'rgb(255, 99, 132)',
-        data: [0, 0, 0]
+        data: Array(nArms).fill(0)
       },
       {
         label: 'Pulls',
         backgroundColor: 'rgb(255, 99, 0)',
         borderColor: 'rgb(255, 99, 132)',
-        data: [0, 0, 0]
+        data: Array(nArms).fill(0)
       }
     ]
   },
-  options: {}
+  options: {
+    scales: {
+    }
+  }
+
 })
 
 let cumulativeReward = []
@@ -67,7 +73,7 @@ updateButton.addEventListener('click', (evt) => {
 }, false)
 
 simulateButton.addEventListener('click', (evt) => {
-  Array(100).fill(0).forEach(() => {
+  Array(1000).fill(0).forEach(() => {
     const arm = bandit.selectArm()
     updateChart(arm)
   })
