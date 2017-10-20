@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Bandit represents the bandit data
 type Bandit struct {
 	epsilon float64
 	counts  []int
@@ -61,6 +62,14 @@ func New(nArms int, epsilonDecay float64) *Bandit {
 		values:  make([]float64, nArms),
 		counts:  make([]int, nArms),
 	}
+}
+
+func (b *Bandit) SetValues(values []float64) {
+	b.values = values
+}
+
+func (b *Bandit) SetCounts(counts []int) {
+	b.counts = counts
 }
 
 func bernoulliArm() bool {

@@ -21,3 +21,43 @@ return redis.status_reply('ok')`)
 	cmd2 := client.EvalSha(sha, []string{"test:1"}, "1421481600000", "yes")
 }
 ```
+
+
+## Bandit algorithm requirements
+
+
+As a user, <br>
+I want to create a new bandit test, <br>
+In order to test the performance of the ui.
+
+|------------------------------|
+| Feature      | Pull | Reward |
+|--------------|------|--------|
+| Red button   | 0    | 0      |
+| Green button | 0    | 0      |
+| Blue button  | 0    | 0      |
+|------------------------------|
+
+As a user, <br>
+I want to set the initial values of the bandit, <br>
+In order to have better control over the exploitation.
+
+```bash
+$ PUT /bandits/experiment-name
+
+{
+	"values": [0,1,2,3]
+}
+```
+
+- upload data 
+- download data
+- replay from last
+- reset from start
+- duplicate
+- getURL
+- update experiment name
+- update labels
+- set labels
+- get reward/pull ratio
+- store in memory/redis/dedicated storage?
