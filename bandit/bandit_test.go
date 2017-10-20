@@ -2,7 +2,9 @@ package bandit
 
 import (
 	"log"
+	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestSum(t *testing.T) {
@@ -48,6 +50,8 @@ func TestMax(t *testing.T) {
 func TestNewBandit(t *testing.T) {
 	nArms := 10
 	epsilon := float64(0.1)
+	rand.Seed(time.Now().UnixNano())
+	log.Println("randfloat", rand.Float32())
 
 	bandit := New(nArms, epsilon)
 	log.Printf("got bandit: %#v", bandit)

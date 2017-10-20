@@ -15,16 +15,12 @@ type Bandit struct {
 }
 
 func (b *Bandit) chooseArm() (int, bool) {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
-	if r1.Float64() > b.epsilon {
+	if rand.Float64() > b.epsilon {
 		// Exploit
 		return max(b.values...), true
 	}
 	// Explore
-	s2 := rand.NewSource(time.Now().UnixNano())
-	r2 := rand.New(s2)
-	return r2.Intn(len(b.values)), false
+	return rand.Intn(len(b.values)), false
 }
 
 // update will update an arm with some reward value,
@@ -68,17 +64,14 @@ func New(nArms int, epsilonDecay float64) *Bandit {
 }
 
 func bernoulliArm() bool {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
-	return r1.Float32() < 0.5
+	return rand.Float32() < 0.5
 }
 
 func main() {
-
+	rand.Seed(time.Now().UnixNano())
 	bandit := New(5, 0.1)
 	arm, _ := bandit.chooseArm()
 
 	log.Println("arm:", arm)
 	log.Println("randfloat", rand.Float32())
-
 }
