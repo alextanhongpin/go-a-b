@@ -1,4 +1,5 @@
 'use strict'
+
 const ctx = document.getElementById('canvas').getContext('2d')
 const updateButton = document.getElementById('update')
 const simulateButton = document.getElementById('simulate')
@@ -59,6 +60,7 @@ function updateChart (arm) {
   console.log('arm', arm)
   console.log('pulls', JSON.stringify(pullsDataset))
   console.log('reward', JSON.stringify(rewardDataset))
+  console.log('counts', bandit.counts)
   const totalReward = rewardDataset.reduce((a, b) => a + b, 0)
   const totalPulls = pullsDataset.reduce((a, b) => a + b, 0)
   console.log('reward / pull', JSON.stringify(totalReward / totalPulls))

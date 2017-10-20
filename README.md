@@ -61,3 +61,12 @@ $ PUT /bandits/experiment-name
 - set labels
 - get reward/pull ratio
 - store in memory/redis/dedicated storage?
+
+
+Frontend guide
+
+1. Call the api to select an arm
+2. The call should return the arm, the feature information and some metadata
+3. The data should be cached locally so that the user does not need to call the cached data again (persistent)
+4. If the user clicks it, then update it with the score 1
+5. Else if the user navigates out of the page without doing anything, then update it with the score 0

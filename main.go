@@ -4,154 +4,109 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/go-redis/redis"
-	"github.com/satori/go.uuid"
+	"github.com/alextanhongpin/go-a-b/bandit"
+
+	"github.com/julienschmidt/httprouter"
 )
 
-const port = ":8080"
-
-type AB struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Options     []string `json:"options"`
-	OptionsCSV  string   `json:"options_csv"`
-	Scores      []int64  `json:"scores"`
-	CreatedAt   int64    `json:"created_at"`
-	UpdatedAt   int64    `json:"updated_at"`
-	ID          string   `json:"id"`
-	Slug        string   `json:"slug"`
-}
+var experiments *bandit.Experiment
 
 func main() {
-	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
+	rand.Seed(time.Now().UnixNano())
+	experiments = bandit.NewExperiment()
 
-	pong, err := client.Ping().Result()
-	if err != nil {
-		log.Fatal(err)
+	log.Printf("got %#v", exp)
+
+	r := httprouter.New()
+	r.GET("/", index)
+	r.GET("/experiments", getExperiments)
+	r.POST("/experiments", createExperiment)
+	r.PATCH("/experiments/:id", updateExperiment)
+	r.GET("/arms/:id", getArm)
+	r.PATCH("/arms/:id", updateArm)
+
+	log.Println("listening to port *:8080. press ctrl + c to cancel")
+	log.Fatal(http.ListenAndServe(":8080", r))
+}
+
+func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fmt.Fprint(w, `{"ok": true}`)
+}
+
+type GetAllResponse struct {
+	Data []bandit.Response `json:"data"`
+}
+
+func getExperiments(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	res := GetAllResponse{
+		Data: experiments.All(),
 	}
-	log.Println(pong)
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+func getArm(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
 
-	mux := http.NewServeMux()
+	exp := experiments.One(id)
+	arm, exploit := exp.SelectArm()
 
-	// ab := make(map[string]interface{})
-	// ab["name"] = "hello-test"
-	// ab["option-1"] = "yes"
-	// ab["option-2"] = "no"
-	// client.HMSet("test-ab", ab)
+	res := make(map[string]interface{})
+	res["arm"] = arm
+	res["exploit"] = exploit
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
 
-			path := strings.TrimPrefix(r.URL.Path, "/") //strings.Join(strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/"), "-")
+func updateArm(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+	arm := ps.ByName("arm")
+	reward := ps.ByName("reward")
 
-			var ab AB
-			if err := json.NewDecoder(r.Body).Decode(&ab); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+	armInt, _ := strconv.Atoi(arm)
+	rewardInt, _ := strconv.Atoi(reward)
 
-			ab.Slug = path
-			ab.CreatedAt = time.Now().UnixNano() / 1000000
-			ab.UpdatedAt = time.Now().UnixNano() / 1000000
-			ab.ID = uuid.NewV4().String()
-			ab.OptionsCSV = strings.ToLower(strings.Join(ab.Options, ","))
+	exp := experiments.One(id)
+	exp.Update(armInt, float64(rewardInt))
 
-			// Convert it back to map[string] interface{}
+	res := make(map[string]interface{})
+	res["arm"] = armInt
+	res["reward"] = rewardInt
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
 
-			in, err := json.Marshal(ab)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			out := make(map[string]interface{})
-			if err := json.Unmarshal(in, &out); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			for _, v := range ab.Options {
-				out[strings.ToLower(v)] = 0
-			}
-
-			delete(out, "options")
-
-			cmd := client.HMSet(path, out)
-			if cmd.Err() != nil {
-				http.Error(w, cmd.Err().Error(), http.StatusBadRequest)
-				return
-			}
-			val := cmd.Val()
-			log.Println(val)
-
-			fmt.Fprintf(w, `{"body": "%v"}`, val)
-		} else if r.Method == http.MethodGet {
-			path := strings.TrimPrefix(r.URL.Path, "/")
-
-			cmd := client.HGetAll(path)
-			if cmd.Err() != nil {
-				http.Error(w, cmd.Err().Error(), http.StatusBadRequest)
-				return
-			}
-
-			val := cmd.Val()
-
-			createdAt, err := strconv.Atoi(val["created_at"])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			updatedAt, err := strconv.Atoi(val["updated_at"])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			options := strings.Split(val["options_csv"], ",")
-			scores := make([]int64, len(options))
-			for k, opt := range options {
-				val, err := strconv.Atoi(val[opt])
-				if err != nil {
-					scores[k] = 0
-				} else {
-					scores[k] = int64(val)
-				}
-			}
-
-			ab := AB{
-				Name:        val["name"],
-				Description: val["description"],
-				Options:     strings.Split(val["options_csv"], ","),
-				Scores:      scores,
-				CreatedAt:   int64(createdAt),
-				UpdatedAt:   int64(updatedAt),
-				ID:          val["id"],
-				Slug:        val["slug"],
-			}
-
-			if err := json.NewEncoder(w).Encode(ab); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-			// http.Error(w, http.ErrNotSupported.Error(), http.StatusBadRequest)
-		} else if r.Method == http.MethodPut {
-			path := strings.TrimPrefix(r.URL.Path, "/")
-			cmd := client.HIncrBy(path, "yes", 1)
-			if cmd.Err() != nil {
-				http.Error(w, cmd.Err().Error(), http.StatusBadRequest)
-				return
-			}
-			fmt.Fprint(w, `{"ok": true}`)
+func updateExperiment(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+	exp := experiments.One(id)
+	s1 := rand.NewSource(time.Now().UnixNano())
+	r1 := rand.New(s1)
+	for i := 0; i < 1000; i++ {
+		var reward int
+		if r1.Float64() > 0.5 {
+			reward = 1
 		}
-	})
+		arm, _ := exp.SelectArm()
+		exp.Update(arm, float64(reward))
+	}
+	res := make(map[string]interface{})
+	res["ok"] = true
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
 
-	log.Printf("listening to port *%v. press ctrl + c to cancel.\n", port)
-	log.Fatal(http.ListenAndServe(port, mux))
+func createExperiment(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	exp := experiments.NewEpsilonGreedy(3, 0.1)
+	if err := json.NewEncoder(w).Encode(exp); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 }
