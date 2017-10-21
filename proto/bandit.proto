@@ -1,0 +1,104 @@
+syntax = "proto3";
+package bandit;
+
+import "google/api/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+service BanditService {
+  rpc GetExperiments (GetExperimentsRequest) returns (GetExperimentsResponse) {
+    option (google.api.http) = {
+      get: "/v1/experiments"
+    };
+  }
+  rpc GetExperiment (GetExperimentRequest) returns (GetExperimentResponse) {
+    option (google.api.http) = {
+      get: "/v1/experiments/{id}"
+    };
+  }
+  rpc PostExperiment (PostExperimentRequest) returns (PostExperimentResponse) {
+    option (google.api.http) = {
+      post: "/v1/experiments"
+      body: "*"
+    };
+  }
+  rpc DeleteExperiment (DeleteExperimentRequest) returns (DeleteExperimentResponse) {
+    option (google.api.http) = {
+      delete: "/v1/experiments/{id}"
+    };
+  }
+  rpc GetArm (GetArmRequest) returns (GetArmResponse) {
+    option (google.api.http) = {
+      get: "/v1/experiments/{id}/arms"
+    };
+  }
+  rpc UpdateArm (UpdateArmRequest) returns (UpdateArmResponse) {
+    option (google.api.http) = {
+      patch: "/v1/experiments/{id}/arms"
+      body: "*"
+    };
+  }
+}
+
+message Experiment {
+  string id = 1;
+  string created_at = 2;
+  string updated_at = 3;
+  string name = 4;
+  string description = 5;
+  int64 n = 6;
+  double epsilon = 7;
+  repeated string features = 8;
+  repeated int64 counts = 9;
+  repeated double rewards = 10;
+}
+
+message GetExperimentsRequest {
+
+}
+
+message GetExperimentsResponse {
+ repeated Experiment data = 1;
+ int64 count = 2;
+}
+
+message GetExperimentRequest {
+  string id = 1;
+}
+
+message GetExperimentResponse {
+  Experiment data = 1;
+}
+
+message PostExperimentRequest {
+  Experiment data = 1;
+}
+
+message PostExperimentResponse {
+  string id = 1;
+}
+
+message DeleteExperimentRequest {
+  string id = 1;
+}
+
+message DeleteExperimentResponse {
+  bool ok = 1;
+}
+
+message GetArmRequest {
+  string id = 1;
+}
+
+message GetArmResponse {
+  int64 arm = 1;
+}
+
+message UpdateArmRequest {
+  string id = 1;
+  int64 arm = 2;
+  float reward = 3;
+}
+
+message UpdateArmResponse {
+  bool ok = 1;
+}
