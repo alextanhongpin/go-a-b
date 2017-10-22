@@ -22,7 +22,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	grpcServer := grpc.NewServer()
 
 	db, err := bolt.Open(database, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -32,8 +31,7 @@ func main() {
 
 	// Create bucket if it doesn't exist
 	if err := db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(bucket)
-		if err != nil {
+		if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 			return err
 		}
 		return nil
@@ -41,6 +39,7 @@ func main() {
 		log.Printf("error creating bucket: %s\n", err.Error())
 	}
 
+	grpcServer := grpc.NewServer()
 	pb.RegisterBanditServiceServer(grpcServer, &banditServer{
 		db: db,
 	})

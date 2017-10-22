@@ -4,20 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
+	bolt "github.com/coreos/bbolt"
+	uuid "github.com/satori/go.uuid"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
 	pb "github.com/alextanhongpin/go-a-b/proto"
 	"github.com/alextanhongpin/go-bandit"
-	bolt "github.com/coreos/bbolt"
-	uuid "github.com/satori/go.uuid"
-	"google.golang.org/grpc"
 )
 
 func init() {
+	// Ensure that a random value is returned by the bandit algorithm
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -30,7 +30,7 @@ func (s *banditServer) GetExperiments(ctx context.Context, msg *pb.GetExperiment
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucket)
 		if b == nil {
-			return fmt.Errorf("bucket not found: %s", bucket)
+			return fmt.Errorf("bucket: %s does not exist", bucket)
 		}
 		// There's a possibility to stream the data, but due to grpc-gateway limitation
 		// this is not possible at the moment
@@ -44,7 +44,7 @@ func (s *banditServer) GetExperiments(ctx context.Context, msg *pb.GetExperiment
 		})
 		return nil
 	}); err != nil {
-		return nil, grpc.Errorf(codes.Internal, "Error getting experiments: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "GetExperiments: %v", err)
 	}
 
 	return &pb.GetExperimentsResponse{
@@ -56,33 +56,34 @@ func (s *banditServer) GetExperiments(ctx context.Context, msg *pb.GetExperiment
 func (s *banditServer) GetExperiment(ctx context.Context, msg *pb.GetExperimentRequest) (*pb.GetExperimentResponse, error) {
 	id, err := uuid.FromString(msg.Id)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, "The id provided is invalid: %v", err)
+		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
+
 	var exp *pb.Experiment
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucket)
 		if b == nil {
-			return fmt.Errorf("bucket not found: %s", bucket)
+			return fmt.Errorf("bucket: %s does not exist", bucket)
 		}
+
 		v := b.Get([]byte(id.String()))
-		log.Println("got v", v, len(v))
 		if len(v) == 0 {
-			return fmt.Errorf("the item does not exist or has been deleted")
+			return fmt.Errorf("key-value: value for %s does not exist", id.String())
 		}
 		if err := json.Unmarshal(v, &exp); err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		return nil, grpc.Errorf(codes.Internal, "Error getting experiment: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "GetExperiment: %v", err)
 	}
+
 	return &pb.GetExperimentResponse{
 		Data: exp,
 	}, nil
 }
 
 func (s *banditServer) PostExperiment(ctx context.Context, msg *pb.PostExperimentRequest) (*pb.PostExperimentResponse, error) {
-
 	id := uuid.NewV4().String()
 	msg.Data.Id = id
 	msg.Data.CreatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -107,17 +108,23 @@ func (s *banditServer) PostExperiment(ctx context.Context, msg *pb.PostExperimen
 
 	experimentBytes, err := json.Marshal(msg.Data)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, "Could not marshal data: %v", err)
+		return nil, grpc.Errorf(codes.Internal, err)
 	}
-	err = s.db.Update(func(tx *bolt.Tx) error {
+
+	if err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucket)
 		// keyTimestamp := []byte(time.Now().UTC().Format(time.RFC3339))
 		if err := b.Put([]byte(id), experimentBytes); err != nil {
 			return err
 		}
 		return nil
-	})
-	return nil, grpc.Errorf(codes.Unimplemented, "This method is not implement")
+	}); err != nil {
+		return nil, grpc.Errorf(codes.Internal, "PostExperiment: %v", err)
+	}
+
+	return *pb.PostExperimentResponse{
+		Id: id,
+	}, nil
 }
 
 func (s *banditServer) DeleteExperiment(ctx context.Context, msg *pb.DeleteExperimentRequest) (*pb.DeleteExperimentResponse, error) {
@@ -125,16 +132,16 @@ func (s *banditServer) DeleteExperiment(ctx context.Context, msg *pb.DeleteExper
 	if err != nil {
 		return nil, grpc.Errorf(codes.Internal, "The id provided is invalid: %v", err)
 	}
-	err = s.db.Update(func(tx *bolt.Tx) error {
+	if err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucket)
 		if err := b.Delete([]byte(id.String())); err != nil {
-			return fmt.Errorf("error deleting item from bucket: %v", err)
+			return fmt.Errorf("delete: %v", err)
 		}
 		return nil
-	})
-	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, "error deleting data from bucket: %v", err)
+	}); err != nil {
+		return nil, grpc.Errorf(codes.Internal, "DeleteExperiment: %v", err)
 	}
+
 	return &pb.DeleteExperimentResponse{
 		Ok: true,
 	}, nil
@@ -143,13 +150,12 @@ func (s *banditServer) DeleteExperiment(ctx context.Context, msg *pb.DeleteExper
 func (s *banditServer) GetArm(ctx context.Context, msg *pb.GetArmRequest) (*pb.GetArmResponse, error) {
 	id, err := uuid.FromString(msg.Id)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, "The id provided is invalid: %v", err)
+		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
 	var exp *pb.Experiment
 	if err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucket)
 		v := b.Get([]byte(id.String()))
-		log.Println("got v", v, len(v))
 		if len(v) == 0 {
 			return fmt.Errorf("the item does not exist or has been deleted")
 		}
@@ -185,7 +191,7 @@ func (s *banditServer) UpdateArm(ctx context.Context, msg *pb.UpdateArmRequest) 
 	// redis get arm:arm_id:chosen_arm
 	// If it doesn't match, then error message unable to update
 
-	err = s.db.Update(func(tx *bolt.Tx) error {
+	if err = s.db.Update(func(tx *bolt.Tx) error {
 		var exp *pb.Experiment
 		b := tx.Bucket(bucket)
 		v := b.Get([]byte(id.String()))
@@ -194,7 +200,7 @@ func (s *banditServer) UpdateArm(ctx context.Context, msg *pb.UpdateArmRequest) 
 			return fmt.Errorf("the item does not exist or has been deleted")
 		}
 		if err := json.Unmarshal(v, &exp); err != nil {
-			return fmt.Errorf("error unmarshalling data: %v", err)
+			return err
 		}
 
 		eps := bandit.NewEpsilonGreedy(int(exp.N), exp.Epsilon)
@@ -207,16 +213,16 @@ func (s *banditServer) UpdateArm(ctx context.Context, msg *pb.UpdateArmRequest) 
 		exp.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		newByte, err := json.Marshal(exp)
 		if err != nil {
-			return fmt.Errorf("error marshalling data: %v", err)
+			return err
 		}
 		if err = b.Put([]byte(id.String()), newByte); err != nil {
 			return err
 		}
 		return nil
-	})
-	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, err.Error(), nil)
+	}); err != nil {
+		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
+
 	return &pb.UpdateArmResponse{
 		Ok: true,
 	}, nil
