@@ -8,8 +8,8 @@ const arm2 = document.getElementById('arm2')
 const arm3 = document.getElementById('arm3')
 
 const nArms = 5
-const bandit = new EpsilonGreedy({
-  epsilon: 0.1,
+const bandit = new Softmax({
+  temperature: 0.1,
   n: nArms
 })
 
@@ -64,6 +64,7 @@ function updateChart (arm) {
   const totalReward = rewardDataset.reduce((a, b) => a + b, 0)
   const totalPulls = pullsDataset.reduce((a, b) => a + b, 0)
   console.log('reward / pull', JSON.stringify(totalReward / totalPulls))
+  console.log(bandit.values)
 
   chart.update()
   count += 1

@@ -48,3 +48,5 @@ func main() {
 	log.Printf("listening to port *%s. press ctrl + c to cancel.\n", port)
 	log.Fatal(grpcServer.Serve(lis))
 }
+
+// Run a cron periodically that checks the keys and updates the rewards

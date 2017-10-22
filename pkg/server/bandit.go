@@ -163,18 +163,27 @@ func (s *banditServer) GetArm(ctx context.Context, msg *pb.GetArmRequest) (*pb.G
 	eps := bandit.NewEpsilonGreedy(int(exp.N), exp.Epsilon)
 	eps.SetRewards(exp.Rewards)
 	eps.SetCounts(exp.Counts)
-	arm, _ := eps.SelectArm()
+	arm := eps.SelectArm()
 
+	// Create a unique id that the user can associate with
+	// redis set arm:arm_id:chosen_arm
 	return &pb.GetArmResponse{
 		Arm: int64(arm),
 	}, nil
 }
 
 func (s *banditServer) UpdateArm(ctx context.Context, msg *pb.UpdateArmRequest) (*pb.UpdateArmResponse, error) {
+	// User needs to pass the unique id that is generated when selecting the arm
+	// If both the id matches, then perform the update
+	// This is useful for two reason:
+	// 1. Unique tracking
+	// 2. Setting the reward to 0 if user did not response
 	id, err := uuid.FromString(msg.Id)
 	if err != nil {
 		return nil, grpc.Errorf(codes.Internal, "The id provided is invalid: %v", err)
 	}
+	// redis get arm:arm_id:chosen_arm
+	// If it doesn't match, then error message unable to update
 
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		var exp *pb.Experiment

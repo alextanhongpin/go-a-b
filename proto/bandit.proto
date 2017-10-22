@@ -91,6 +91,7 @@ message GetArmRequest {
 
 message GetArmResponse {
   int64 arm = 1;
+  string armId = 2;
 }
 
 message UpdateArmRequest {
