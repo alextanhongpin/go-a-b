@@ -8,6 +8,8 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
+	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/redis"
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,7 +24,8 @@ func init() {
 }
 
 type banditServer struct {
-	db *bolt.DB
+	db    *bolt.DB
+	cache *redis.Client
 }
 
 func (s *banditServer) GetExperiments(ctx context.Context, msg *pb.GetExperimentsRequest) (*pb.GetExperimentsResponse, error) {
@@ -171,10 +174,19 @@ func (s *banditServer) GetArm(ctx context.Context, msg *pb.GetArmRequest) (*pb.G
 	eps.SetCounts(exp.Counts)
 	arm := eps.SelectArm()
 
+	// create unique id
+	armID := "1"
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
+		Id:        armID,
+		ExpiresAt: 300, // 5 minutes (make this a config)
+		Issuer:    "",
+	})
+	ss, err := token.SignedString(jwtKey)
 	// Create a unique id that the user can associate with
 	// redis set arm:arm_id:chosen_arm
 	return &pb.GetArmResponse{
-		Arm: int64(arm),
+		Arm:   int64(arm),
+		Token: ss,
 	}, nil
 }
 
@@ -227,3 +239,27 @@ func (s *banditServer) UpdateArm(ctx context.Context, msg *pb.UpdateArmRequest) 
 		Ok: true,
 	}, nil
 }
+
+// func ValidateArm() {
+// 	tokenString := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJuYmYiOjE0NDQ0Nzg0MDB9.u1riaD1rW97opCoAuRCTy4w58Br-Zk-bh7vLiRIsrpU"
+
+// 	// Parse takes the token string and a function for looking up the key. The latter is especially
+// 	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
+// 	// head of the token to identify which key to use, but the parsed token (head and claims) is provided
+// 	// to the callback, providing flexibility.
+// 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+// 		// Don't forget to validate the alg is what you expect:
+// 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+// 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+// 		}
+
+// 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+// 		return hmacSampleSecret, nil
+// 	})
+
+// 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+// 		fmt.Println(claims["foo"], claims["nbf"])
+// 	} else {
+// 		fmt.Println(err)
+// 	}
+// }

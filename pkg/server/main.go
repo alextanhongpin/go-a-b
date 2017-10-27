@@ -9,13 +9,14 @@ import (
 
 	pb "github.com/alextanhongpin/go-a-b/proto"
 	bolt "github.com/coreos/bbolt"
+	"github.com/go-redis/redis"
 )
-
-const database = "bandit.db"
 
 var bucket = []byte("bandit")
 
+const database = "bandit.db"
 const port = ":50051"
+const jwtKey = "secret"
 
 func main() {
 	lis, err := net.Listen("tcp", port)
@@ -23,6 +24,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// SETUP: Redis
+	client := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+
+	// SETUP: Bolt
 	db, err := bolt.Open(database, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		log.Fatalf("error connecting to database: %s", err.Error())
@@ -39,9 +48,11 @@ func main() {
 		log.Printf("error creating bucket: %s\n", err.Error())
 	}
 
+	// SETUP: gRPC
 	grpcServer := grpc.NewServer()
 	pb.RegisterBanditServiceServer(grpcServer, &banditServer{
-		db: db,
+		db:    db,
+		cache: client,
 	})
 
 	log.Printf("listening to port *%s. press ctrl + c to cancel.\n", port)

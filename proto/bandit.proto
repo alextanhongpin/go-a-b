@@ -37,6 +37,11 @@ service BanditService {
       body: "*"
     };
   }
+  rpc ValidateArm (ValidateArmRequest) returns (ValidateArmResponse) {
+    option (google.api.http) = {
+      get: "/v1/arm_info"
+    }
+  }
 }
 
 message Experiment {
@@ -91,15 +96,23 @@ message GetArmRequest {
 
 message GetArmResponse {
   int64 arm = 1;
-  string armId = 2;
+  string token = 2;
 }
 
 message UpdateArmRequest {
-  string id = 1;
+  string armId = 1;
   int64 arm = 2;
   float reward = 3;
 }
 
 message UpdateArmResponse {
+  bool ok = 1;
+}
+
+message ValidateArmRequest {
+  string token = 1
+}
+
+message ValidateArmResponse {
   bool ok = 1;
 }
