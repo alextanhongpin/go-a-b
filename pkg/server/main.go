@@ -10,6 +10,7 @@ import (
 	pb "github.com/alextanhongpin/go-a-b/proto"
 	bolt "github.com/coreos/bbolt"
 	"github.com/go-redis/redis"
+	"github.com/robfig/cron"
 )
 
 var bucket = []byte("bandit")
@@ -37,6 +38,14 @@ func main() {
 		log.Fatalf("error connecting to database: %s", err.Error())
 	}
 	defer db.Close()
+
+	// SETUP: cron
+	c := cron.New()
+	c.AddFunc("0 */5 * * * *", func() {
+		// get a list of keys from redis that matches the pattern
+		// perform a write to the database
+		log.Println("running every 5 minutes")
+	})
 
 	// Create bucket if it doesn't exist
 	if err := db.Update(func(tx *bolt.Tx) error {
